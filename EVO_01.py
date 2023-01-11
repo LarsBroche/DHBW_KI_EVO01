@@ -38,7 +38,7 @@ def generate_random_classifier():
     classifier = []
 
     for _ in range(classifierLength):
-        feature_index = random.randint(0, 3)  # 0-3 inclusive
+        feature_index = random.randint(0, 3)
         operator = random.choice(["<", ">=", "=="])
         threshold = round(random.uniform(0, 10), 1)
         class_label = random.choice(
@@ -205,11 +205,6 @@ if __name__ == "__main__":
     else:
         with open("selected_generation.txt", "r") as fp:
             selected_generation = json.load(fp)
-
-    print(selection(selected_generation, iris_data,
-          FITTEST_INDIVIDUALS_TO_SELECT)[0])
-
-    
 
     print(classify_iris(iris, selection(selected_generation,
           iris_data, FITTEST_INDIVIDUALS_TO_SELECT)[0]))
