@@ -2,6 +2,13 @@
 #creates a classifier that uses the petal length 
 import csv
 import random
+import argparse
+import json 
+
+POPULATION_SIZE = 225
+MAX_FITNESS = 0.99
+MAX_ITERATIONS = 300
+FITTEST_INDIVIDUALS_TO_SELECT = 16
 
 def read_csv():
 
@@ -9,12 +16,12 @@ def read_csv():
         reader = csv.reader(f)
         rows = [row for row in reader]
         
-    keys = ['sepal_width', 'sepal_length', 'petal_width', 'petal_length', 'iris_species']
+    keys = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'iris_species']
     iris_data = [{keys[i]: row[i] for i in range(len(keys))} for row in rows]
+
     return iris_data
 
 def classify_iris(iris, classifier):
-  
   
   for feature_index, operator, threshold, class_label in classifier:
     feature_value = [iris["sepal_length"], iris["sepal_width"], iris["petal_length"], iris["petal_width"]][feature_index]
@@ -24,11 +31,11 @@ def classify_iris(iris, classifier):
     
 
 def generate_random_classifier():
-  n = random.randint(1, 5)
+  classifierLength = random.randint(1, 5)
   
   classifier = []
   
-  for _ in range(n):
+  for _ in range(classifierLength):
     feature_index = random.randint(0, 3)  # 0-3 inclusive
     operator = random.choice(["<", ">=", "=="])
     threshold = random.uniform(0, 10)
@@ -39,13 +46,27 @@ def generate_random_classifier():
 
 
 def init_starting_population():
-    print("Initializing Population...")
-    population_size = 225
-    population = []
-    for i in range(225):
-        population.append(generate_random_classifier())
-    return population
+  print("Initializing Population...")
+  
+  population = []
+
+  for _ in range(POPULATION_SIZE):
+    population.append(generate_random_classifier())
+  return population
         
+
+
+
+
+
+def selection(population, iris_list, fittestIndividualsToSelect):
+
+  fitness_scores = [(fitness(classifier, iris_list), classifier) for classifier in population]
+  
+  fitness_scores.sort(reverse=True)
+  
+  return [classifier for _, classifier in fitness_scores[:fittestIndividualsToSelect]]
+
 
 def fitness(classifier, iris_list):
   correct = 0
@@ -59,38 +80,25 @@ def fitness(classifier, iris_list):
       
   return correct / total
 
-
-def selection(population, iris_list, n):
-
-  fitness_scores = [(fitness(classifier, iris_list), classifier) for classifier in population]
-  
-  fitness_scores.sort(reverse=True)
-  
-  return [classifier for _, classifier in fitness_scores[:n]]
-
 def max_fitness_score(population, iris_list):
 
   fitness_scores = [(fitness(classifier, iris_list), classifier) for classifier in population]
   
   fitness_scores.sort(reverse=True)
-  
-  
-  
+
   return fitness_scores[0][0]
   
   
 
 def crossover(classifiers):
-    n = 225
-  
 
-    m = 15
+    m = FITTEST_INDIVIDUALS_TO_SELECT-1
   
  
     new_classifiers = []
   
   # Perform crossover on the input classifiers to generate the new classifiers
-    for i in range(n - m):
+    for _ in range(POPULATION_SIZE - m):
     
         parent1 = random.choice(classifiers)
         parent2 = random.choice(classifiers)
@@ -103,6 +111,7 @@ def crossover(classifiers):
     
   
     new_classifiers += classifiers
+
   
     return new_classifiers
 
@@ -121,10 +130,13 @@ def genetic_algorithm(population, iris_data):
     parent_population = population
     iterations = 0
     child_population_is_fitter = True
+
+   
     
-    while max_fitness_score(parent_population, iris_data) <= 0.99 and iterations != 500:
-        fit_individuals = selection(parent_population,iris_data, 16)
+    while max_fitness_score(parent_population, iris_data) <= MAX_FITNESS and iterations != MAX_ITERATIONS:
+        fit_individuals = selection(parent_population,iris_data, FITTEST_INDIVIDUALS_TO_SELECT)
         child_population = crossover(fit_individuals)
+        child_population = mutation(child_population)
         #if max_fitness_score(child_population, iris_data) == max_fitness_score(parent_population, iris_data):
             #return child_population
         parent_population = child_population
@@ -133,15 +145,93 @@ def genetic_algorithm(population, iris_data):
         
     return parent_population
 
+def clasify_iris_with_population(iris, population):
+
+  classification = []
+
+  for classifier in population:
+    for feature_index, operator, threshold, class_label in classifier:
+      feature_value = [iris["sepal_length"], iris["sepal_width"], iris["petal_length"], iris["petal_width"]][feature_index]
+      if eval(str(feature_value) + operator + str(threshold)):
+        classification.append(class_label)
+        
+      #classification.append("Iris-versicolor") 
+
+  print("Setosa", classification.count("Iris-setosa"))
+  print("Versicolor", classification.count("Iris-versicolor"))
+  print("Virginica", classification.count("Iris-virginica"))
+
+def mutation(classifiers):
+
+  new_classifiers = []
+  
+  for classifier in classifiers:
+    featureToMutate = random.randint(0, len(classifier)-1)
+
+    mutation = random.uniform(0, 1) * random.uniform(0, 1) #Makes smaller changes more likely
+
+    classifierAsList = list(classifier[featureToMutate])
+    
+    if(random.randint(0,1) == 0):
+      classifierAsList[2] += mutation
+
+    else: 
+      classifierAsList[2] -= mutation
+
+    classifier[featureToMutate] = tuple(classifierAsList)
+    new_classifiers.append(classifier)
+
+  return new_classifiers
+
+
 if __name__ == "__main__":
+
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument("sepal_length", type=float, help="Sepal Length")
+  parser.add_argument("sepal_width", type=float, help="Sepal Width")
+  parser.add_argument("petal_length", type=float, help="Petal Length")
+  parser.add_argument("petal_width", type=float, help="Petal Width")
+  parser.add_argument('-train', action='store_true')
+
+  args = parser.parse_args()
+
+  cliSepalLength = args.sepal_length
+  cliSepalWidth = args.sepal_width
+  cliPetalLength = args.petal_length
+  cliPetalWidth= args.petal_width
+  trainBool = args.train
+
+  iris = {
+    "sepal_length" : cliSepalLength,
+    "sepal_width" : cliSepalWidth,
+    "petal_length" : cliPetalLength,
+    "petal_width" : cliPetalWidth,
+  }
+
+  if(trainBool):
     classifier_population = init_starting_population()
     iris_data = read_csv()
     selected_generation = genetic_algorithm(classifier_population, iris_data)
+
+    with open("selected_generation.txt", "w") as fp:
+      json.dump(selected_generation, fp)
+
     print(max_fitness_score(selected_generation, iris_data))
+  else:
+    with open("selected_generation.txt", "r") as fp:
+      selected_generation = json.load(fp)
+
+  clasify_iris_with_population(iris, selected_generation)
+
+  #print(selected_generation)
+  #print(classify_iris(iris, selected_generation[0]))
+
+  
     
     
     
         
     
     
-    
+ 
